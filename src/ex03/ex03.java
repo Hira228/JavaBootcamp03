@@ -1,44 +1,82 @@
-import java.io.*;
-import java.net.URL;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.util.ArrayDeque;
+import java.util.Queue;
+import java.util.Scanner;
 
 public class ex03 {
-    public static void main(String[] args) throws InterruptedException {
-        Thread[] threads = new Thread[Integer.parseInt(args[0])];
-        int i = 0;
-        String path = "src/1.txt";
-        String pathToDownload = "src/";
-        try (BufferedReader reader = new BufferedReader(new FileReader(path))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                String finalLine = line;
-                threads[i] = new Thread(() -> {
-                    try {
-                        downloadFile(finalLine, pathToDownload);
-                    } catch (IOException | InterruptedException e) {
-                        throw new RuntimeException(e);
-                    }
-                });
-                threads[i++].start();
-            }
-        } catch (IOException e) {
-            System.out.println(e.getMessage());
+    public static void main(String[] args) throws FileNotFoundException {
+        FileInputStream fis = new FileInputStream("src/1.txt");
+        Scanner scanner = new Scanner(fis);
+        QueueTasks tasks = new QueueTasks();
+        TaskConsumer consumer = new TaskConsumer(tasks);
+        Thread[] threads;
+        Thread t = new Thread(consumer);
+        t.start();
+        while (scanner.hasNext()) {
+            String str = scanner.nextLine();
+            tasks.put(str);
+        }
+        tasks.setNoMoreTasks();
+        try {
+            t.join();
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
         }
 
-        for(Thread thread : threads) {
-            thread.join();
-        }
     }
-    private static synchronized void downloadFile(String line, String pathToDownload) throws IOException, InterruptedException {
-        String[] spl =  line.split("//")[1].split("/");
-        try (BufferedInputStream in = new BufferedInputStream(new URL(line.split(" ")[1]).openStream());
-             FileOutputStream fileOutputStream = new FileOutputStream(pathToDownload +  spl[line.split("//")[1].split("/").length - 1])) {
-            byte[] dataBuffer = new byte[1024];
-            int bytesRead;
+}
 
-            while ((bytesRead = in.read(dataBuffer, 0, 1024)) != -1) {
-                fileOutputStream.write(dataBuffer, 0, bytesRead);
-            }
-        }
+class QueueTasks {
+    Queue<String> t = new ArrayDeque<>();
+    Thread[] threads;
+    boolean noMoreTasks = false;
+
+    public void setNoMoreTasks() {
+        this.noMoreTasks = true;
     }
 
+    public synchronized String get() {
+        while (noMoreTasks || t.isEmpty()) {
+            try {
+                wait();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        String k = t.remove();
+        notify();
+        return k;
+    }
+
+    public synchronized void put(String s) {
+        while (!t.isEmpty()) {
+            try {
+                wait();
+            }
+            catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        t.add(s);
+        notify();
+    }
+}
+
+
+class TaskConsumer implements Runnable {
+    QueueTasks Tasks;
+    TaskConsumer(QueueTasks Tasks){
+        this.Tasks = Tasks;
+    }
+
+    public void run() {
+        while (!Tasks.noMoreTasks || !Tasks.t.isEmpty()) {
+            synchronized (Tasks) {
+                if (!Tasks.t.isEmpty()) {
+                    System.out.println(Tasks.get());
+                }
+            }
+        }
+    }
 }
