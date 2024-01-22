@@ -10,16 +10,20 @@ public class ex03 {
         Scanner scanner = new Scanner(fis);
         QueueTasks tasks = new QueueTasks();
         TaskConsumer consumer = new TaskConsumer(tasks);
-        Thread[] threads;
-        Thread t = new Thread(consumer);
-        t.start();
+        Thread[] threads = new Thread[10];
+        for(int i = 0; i < 10; ++i) {
+            threads[i] = new Thread(consumer);
+            threads[i].start();
+        }
         while (scanner.hasNext()) {
             String str = scanner.nextLine();
             tasks.put(str);
         }
         tasks.setNoMoreTasks();
         try {
-            t.join();
+            for(Thread t : threads) {
+                t.join();
+            }
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
@@ -74,7 +78,7 @@ class TaskConsumer implements Runnable {
         while (!Tasks.noMoreTasks || !Tasks.t.isEmpty()) {
             synchronized (Tasks) {
                 if (!Tasks.t.isEmpty()) {
-                    System.out.println(Tasks.get());
+                    System.out.println(Thread.currentThread().getName() + Tasks.get());
                 }
             }
         }
