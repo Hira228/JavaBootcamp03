@@ -1,86 +1,96 @@
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
+import java.io.*;
+import java.net.URL;
 import java.util.ArrayDeque;
 import java.util.Queue;
 import java.util.Scanner;
 
 public class ex03 {
-    public static void main(String[] args) throws FileNotFoundException {
-        FileInputStream fis = new FileInputStream("src/1.txt");
-        Scanner scanner = new Scanner(fis);
+    public static void main(String[] args) throws FileNotFoundException, InterruptedException {
+        FileInputStream fileInputStream = new FileInputStream("src/1.txt");
+        Scanner scanner = new Scanner(fileInputStream);
         QueueTasks tasks = new QueueTasks();
-        TaskConsumer consumer = new TaskConsumer(tasks);
-        Thread[] threads = new Thread[10];
-        for(int i = 0; i < 10; ++i) {
+        Consumer consumer = new Consumer(tasks);
+        Thread[] threads = new Thread[Integer.parseInt(args[0])];
+        for(int i = 0; i < threads.length; ++i){
             threads[i] = new Thread(consumer);
             threads[i].start();
         }
-        while (scanner.hasNext()) {
+        while(scanner.hasNext()) {
             String str = scanner.nextLine();
-            tasks.put(str);
+            tasks.Put(str);
         }
         tasks.setNoMoreTasks();
-        try {
-            for(Thread t : threads) {
-                t.join();
-            }
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-
+        for(Thread t : threads) t.join();
     }
 }
 
 class QueueTasks {
-    Queue<String> t = new ArrayDeque<>();
-    Thread[] threads;
     boolean noMoreTasks = false;
-
     public void setNoMoreTasks() {
-        this.noMoreTasks = true;
+        noMoreTasks = true;
     }
+    Queue<String> Tasks = new ArrayDeque<>();
 
-    public synchronized String get() {
-        while (noMoreTasks || t.isEmpty()) {
+    public synchronized void Put(String s) {
+        while(!Tasks.isEmpty()) {
             try {
                 wait();
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
         }
-        String k = t.remove();
+        Tasks.add(s);
         notify();
-        return k;
     }
 
-    public synchronized void put(String s) {
-        while (!t.isEmpty()) {
+    public void downloadFile(String line, String pathToDownload) throws IOException {
+        String[] spl =  line.split("//")[1].split("/");
+        try (BufferedInputStream in = new BufferedInputStream(new URL(line.split(" ")[1]).openStream());
+             FileOutputStream fileOutputStream = new FileOutputStream(pathToDownload +  spl[spl.length - 1])) {
+            byte[] dataBuffer = new byte[1024];
+            int bytesRead;
+
+            while ((bytesRead = in.read(dataBuffer, 0, 1024)) != -1) {
+                fileOutputStream.write(dataBuffer, 0, bytesRead);
+            }
+        }
+    }
+
+
+    public synchronized String Get() {
+        while (Tasks.isEmpty() || noMoreTasks) {
             try {
                 wait();
-            }
-            catch (InterruptedException e) {
+            } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
         }
-        t.add(s);
+        String k = Tasks.remove();
         notify();
+        return k;
     }
 }
 
-
-class TaskConsumer implements Runnable {
-    QueueTasks Tasks;
-    TaskConsumer(QueueTasks Tasks){
-        this.Tasks = Tasks;
+class Consumer implements Runnable {
+    QueueTasks tasks;
+    Consumer(QueueTasks Tasks) {
+        tasks = Tasks;
     }
-
+    @Override
     public void run() {
-        while (!Tasks.noMoreTasks || !Tasks.t.isEmpty()) {
-            synchronized (Tasks) {
-                if (!Tasks.t.isEmpty()) {
-                    System.out.println(Thread.currentThread().getName() + Tasks.get());
+        while (!tasks.noMoreTasks || !tasks.Tasks.isEmpty()) {
+            synchronized (tasks) {
+                if (!tasks.Tasks.isEmpty()) {
+                    try {
+                        String line = tasks.Get();
+                        tasks.downloadFile(line, "src/");
+                        System.out.println(Thread.currentThread().getName());
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
                 }
             }
         }
     }
 }
+
