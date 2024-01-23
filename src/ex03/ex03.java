@@ -83,8 +83,10 @@ class Consumer implements Runnable {
                 if (!tasks.Tasks.isEmpty()) {
                     try {
                         String line = tasks.Get();
+                        System.out.println(Thread.currentThread().getName() + " start download file number " + line.split(" ")[0]);
                         tasks.downloadFile(line, "src/");
-                        System.out.println(Thread.currentThread().getName());
+                        System.out.println(Thread.currentThread().getName() + " finish download file number " + line.split(" ")[0]);
+
                     } catch (IOException e) {
                         throw new RuntimeException(e);
                     }
